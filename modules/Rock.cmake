@@ -298,7 +298,13 @@ macro(rock_standard_layout)
 
     if (IS_DIRECTORY ${PROJECT_SOURCE_DIR}/test)
         option(ROCK_TEST_ENABLED "set to ON to enable the unit tests" OFF)
+        option(ROCK_TEST_CXX_GCOVR_GENERATION_ENABLED "Generate gcovr reports after test runs" OFF)
+
         if (ROCK_TEST_ENABLED)
+            if (ROCK_TEST_CXX_GCOVR_GENERATION_ENABLED)
+                rock_cxx_coverage_report(${PROJECT_NAME})
+            endif()
+
             add_subdirectory(test)
         else()
             message(STATUS "unit tests disabled as ROCK_TEST_ENABLED is set to OFF")
@@ -1326,9 +1332,8 @@ function(rock_testsuite TARGET_NAME)
     rock_test_common(${TARGET_NAME} ${ARGN})
     rock_setup_boost_test(${TARGET_NAME})
     rock_add_test(${TARGET_NAME} "${__rock_test_parameters}")
-    if(ROCK_TEST_CXX_GCOVR_GENERATION_ENABLED)
-        set_tests_properties(${PROJECT_NAME}_report_generation PROPERTIES DEPENDS test-${TARGET_NAME}-cxx)
-    endif()
+    list(APPEND ALL_TEST_TARGETS test-${TARGET_NAME}-cxx)
+    set(ALL_TEST_TARGETS "${ALL_TEST_TARGETS}" CACHE INTERNAL "ALL_TEST_TARGETS")
 endfunction()
 
 ## Uses gtest + google-mock as unit testing framework
@@ -1361,9 +1366,8 @@ function(rock_gtest TARGET_NAME)
 
     rock_setup_gtest_test(${TARGET_NAME} ${GMOCK_DIR} ${GTEST_DIR})
     rock_add_test(${TARGET_NAME} "${__rock_test_parameters}")
-    if(ROCK_TEST_CXX_GCOVR_GENERATION_ENABLED)
-        set_tests_properties(${PROJECT_NAME}_report_generation PROPERTIES DEPENDS test-${TARGET_NAME}-cxx)
-    endif()
+    list(APPEND ALL_TEST_TARGETS test-${TARGET_NAME}-cxx)
+    set(ALL_TEST_TARGETS "${ALL_TEST_TARGETS}" CACHE INTERNAL "ALL_TEST_TARGETS")
 endfunction()
 
 function(rock_cxx_coverage_report PROJECT_NAME)
@@ -1392,6 +1396,10 @@ function(rock_cxx_coverage_report PROJECT_NAME)
         ${gcovr_config_option}
         ${ROCK_GCOVR_EXTRA_OPTIONS}
     )
+
+    foreach(test in ALL_TEST_TARGETS)
+        set_tests_properties(${PROJECT_NAME}_report_generation PROPERTIES DEPENDS test)
+    endforeach()
 endfunction()
 
 function(rock_get_clang_targets VAR filepath)
@@ -1488,11 +1496,6 @@ function(rock_test_common TARGET_NAME)
         set(TARGET_NAME "${PROJECT_NAME}-test")
     endif()
 
-    option(ROCK_TEST_CXX_GCOVR_GENERATION_ENABLED "Generate gcovr reports after test runs" OFF)
-    if (ROCK_TEST_CXX_GCOVR_GENERATION_ENABLED)
-        rock_cxx_coverage_report(${PROJECT_NAME})
-    endif()
-
     rock_executable(${TARGET_NAME} ${ARGN} NOINSTALL)
 endfunction()
 
@@ -1518,6 +1521,13 @@ function(rock_add_test TARGET_NAME __rock_test_parameters)
     add_test(NAME test-${TARGET_NAME}-cxx
              COMMAND ${EXECUTABLE_OUTPUT_PATH}/${TARGET_NAME}
              ${__rock_test_parameters})
+    if(ROCK_TEST_CXX_GCOVR_GENERATION_ENABLED)
+        set_tests_properties(
+            ${PROJECT_NAME}_report_generation
+            PROPERTIES
+            DEPENDS test-${TARGET_NAME}-cxx
+        )
+    endif()
 endfunction()
 
 ## Get the library name from a given path
